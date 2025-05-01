@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Daily-score</title>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <style>
+    body { font-family: sans-serif; max-width: 500px; margin: auto; padding: 20px; }
+    input, button { padding: 8px; margin: 5px 0; width: 100%; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+  </style>
+</head>
+<body>
+  <h2>Daily-score</h2>
+  <div id="nameSection">
+    <input id="nameInput" placeholder="กรอกชื่อของคุณ" />
+    <button onclick="saveName()">เริ่มต้นใช้งาน</button>
+  </div>
+
+  <div id="gameSection" style="display:none">
+    <p>สวัสดี <span id="playerName"></span></p>
+    <input type="number" id="scoreInput" placeholder="กรอกเลขวันนี้ (1-30)" min="1" max="30" />
+    <button onclick="submitScore()">ส่งคะแนนวันนี้</button>
+    <p id="statusMsg"></p>
+    <table>
+      <thead><tr><th>ชื่อ</th><th>คะแนนรวม</th></tr></thead>
+      <tbody id="ranking"></tbody>
+    </table>
+  </div>
+
+  <script>
+    // กำหนด Firebase config ของคุณ
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT.firebaseapp.com",
+      databaseURL: "https://YOUR_PROJECT.firebaseio.com",
+      projectId: "YOUR_PROJECT",
+      storageBucket: "YOUR_PROJECT.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    let username = localStorage.getItem("dailyScoreName");
+    const today = new Date().toISOString().split('T')[0];
+
+    if (username) showGame();
+    
+    function saveName() {
+      const name = document.getElementById("nameInput").value.trim();
+      if (name) {
+        localStorage.setItem("dailyScoreName", name);
+        username = name;
+        showGame();
+      }
+    }
+
+    function showGame() {
+      document.getElementById("nameSection").style.display = "none";
+      document.getElementById("gameSection").style.display = "block";
+      document.getElementById("playerName").textContent = username;
+      loadScores();
+    }
+
+    function submitScore() {
+      const val = parseInt(document.getElementById("scoreInput").value);
+      if (!val || val < 1 || val > 30) return alert("กรุณากรอกเลขระหว่าง 1-30");
+
+      db.ref(`scores/${username}/${today}`).once("value", snapshot => {
+        if (snapshot.exists()) {
+          document.getElementById("statusMsg").innerText = "คุณส่งคะแนนวันนี้แล้ว";
+        } else {
+          db.ref(`scores/${username}/${today}`).set(val, () => {
+            document.getElementById("statusMsg").innerText = "ส่งคะแนนเรียบร้อยแล้ว";
+            loadScores();
+          });
+        }
+      });
+    }
+
+    function loadScores() {
+      db.ref("scores").on("value", snapshot => {
+        const allScores = snapshot.val() || {};
+        const results = [];
+
+        for (const name in allScores) {
+          const userScores = Object.values(allScores[name]);
+          const sum = userScores.reduce((a, b) => a + b, 0);
+          results.push({ name, sum });
+        }
+
+        results.sort((a, b) => b.sum - a.sum);
+        document.getElementById("ranking").innerHTML = results.map(r =>
+          `<tr><td>${r.name}</td><td>${r.sum}</td></tr>`
+        ).join("");
+      });
+    }
+  </script>
+</body>
+</html>
